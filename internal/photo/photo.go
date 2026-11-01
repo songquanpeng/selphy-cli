@@ -79,6 +79,10 @@ type Image struct {
 	SafeRect        Rect    `json:"safe_rect"`
 	OffsetXMM       float64 `json:"offset_x_mm"`
 	OffsetYMM       float64 `json:"offset_y_mm"`
+	Fit             string  `json:"fit"`
+	SourceCrop      Rect    `json:"source_crop"`
+	TrimBasis       string  `json:"trim_basis"`
+	TrimNote        string  `json:"trim_note"`
 }
 
 func Prepare(path string, p Profile, fit string, rotate, quality int) (Image, error) {
@@ -86,10 +90,12 @@ func Prepare(path string, p Profile, fit string, rotate, quality int) (Image, er
 }
 
 type Options struct {
-	Fit, Area            string
-	Rotate, Quality      int
-	MarginMM             float64
-	OffsetXMM, OffsetYMM float64
+	Fit, Area                    string
+	Rotate, Quality              int
+	MarginMM                     float64
+	OffsetXMM, OffsetYMM         float64
+	TrimOffsetXMM, TrimOffsetYMM float64
+	TrimCalibrated               bool
 }
 
 func PrepareWithOptions(path string, p Profile, options Options) (Image, error) {
@@ -103,6 +109,10 @@ func PrepareWithOptions(path string, p Profile, options Options) (Image, error) 
 		return Image{}, err
 	}
 	content = content.Add(shift)
+	trimShift, err := OffsetPixels(options.TrimOffsetXMM, options.TrimOffsetYMM)
+	if err != nil {
+		return Image{}, err
+	}
 	if options.Area != "bleed" && !content.In(image.Rect(0, 0, p.Width, p.Height)) {
 		return Image{}, fmt.Errorf("calibration moves content outside the JPEG raster; reduce the offset or add margin")
 	}
@@ -151,6 +161,7 @@ func PrepareWithOptions(path string, p Profile, options Options) (Image, error) 
 		src = orient(src, 6)
 	}
 	sw, sh := src.Bounds().Dx(), src.Bounds().Dy()
+	sourceCrop := src.Bounds()
 	dst := image.NewRGBA(image.Rect(0, 0, p.Width, p.Height))
 	draw.Draw(dst, dst.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
 	if fit == "cover" {
@@ -161,6 +172,7 @@ func PrepareWithOptions(path string, p Profile, options Options) (Image, error) 
 			ch = max(1, int(math.Round(float64(sw)*float64(content.Dy())/float64(content.Dx()))))
 		}
 		crop := image.Rect((sw-cw)/2, (sh-ch)/2, (sw+cw)/2, (sh+ch)/2).Add(src.Bounds().Min)
+		sourceCrop = crop
 		draw.CatmullRom.Scale(dst, content, src, crop, draw.Over, nil)
 	} else {
 		scale := math.Min(float64(content.Dx())/float64(sw), float64(content.Dy())/float64(sh))
@@ -172,7 +184,11 @@ func PrepareWithOptions(path string, p Profile, options Options) (Image, error) 
 	if err = jpeg.Encode(&out, dst, &jpeg.Options{Quality: quality}); err != nil {
 		return Image{}, err
 	}
-	return Image{JPEG: out.Bytes(), Width: p.Width, Height: p.Height, Bytes: out.Len(), SourceWidth: sw, SourceHeight: sh, EXIFOrientation: orientation, Area: options.Area, ContentRect: rect(content), PaperRect: rect(PaperBounds(p).Add(shift)), SafeRect: rect(SafeBounds(p).Add(shift)), OffsetXMM: options.OffsetXMM, OffsetYMM: options.OffsetYMM}, nil
+	basis, note := "nominal-model", "Model estimate; calibrate this printer/paper for a closer trim prediction. Feed can vary per sheet."
+	if options.TrimCalibrated {
+		basis, note = "saved-calibration", "Estimate using saved printer/paper calibration; feed can still vary per sheet."
+	}
+	return Image{JPEG: out.Bytes(), Width: p.Width, Height: p.Height, Bytes: out.Len(), SourceWidth: sw, SourceHeight: sh, EXIFOrientation: orientation, Area: options.Area, ContentRect: rect(content), PaperRect: rect(PaperBounds(p).Add(trimShift)), SafeRect: rect(SafeBounds(p).Add(trimShift)), OffsetXMM: options.OffsetXMM, OffsetYMM: options.OffsetYMM, Fit: fit, SourceCrop: rect(sourceCrop), TrimBasis: basis, TrimNote: note}, nil
 }
 
 func orient(src image.Image, o int) image.Image {

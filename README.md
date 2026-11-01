@@ -50,6 +50,7 @@ selphy config set --host PRINTER_IP --model CP1500
 
 ```sh
 selphy print photo.jpg --dry-run --preview preview.jpg --json
+selphy print photo.jpg --dry-run --preview-guides guides.png --preview-trimmed trimmed.jpg
 selphy prepare photo.png --paper postcard --fit contain --output ready.jpg
 ```
 
@@ -61,6 +62,25 @@ selphy print photo.jpg --paper postcard --area safe --fit contain --wait
 ```
 
 `print` 每次提交一张，会消耗相纸和墨。`--dry-run` 完全离线，不建立打印连接。预览和 `prepare` 都拒绝覆盖现有文件。
+
+## 打印前查看裁切线
+
+每次实际打印前，stderr 会说明预计成品边界、采用了保存校准还是未经实物校准的机型估计；满版时明确提示裁切线外会被舍弃。`--fit cover` 如另有构图裁切，也会显示被保留的源图尺寸。默认安全区模式会说明排版是否仍位于预计安全区内。
+
+```sh
+selphy print photo.jpg --area bleed --fit cover --dry-run \
+  --preview-guides guides.png --preview-trimmed trimmed.jpg
+```
+
+- `--preview`：实际发送的完整 JPEG，不含标线。
+- `--preview-guides`：单独输出带说明的 PNG。红实线为预计成品边界，绿虚线为安全区，暗色遮罩为预计裁掉的范围。
+- `--preview-trimmed`：单独输出不含标线的成品 JPEG 估计图，模拟撕边后的构图。
+
+这些预览也可用于 `prepare`。标线、遮罩和文字不会进入打印数据；成品预览仅供查看，不应再拿它打印，否则会二次排版裁切。以上命令带 `--dry-run`，不会打印。
+
+**裁切线是估计，不能保证每张相纸机械进纸完全一致。** 已保存该地址/机型/相纸的校准时，按该校准预测；未校准时明确显示 `nominal-model`。重要文字、二维码和细边框应放在绿色安全区内。需要首次校准时，使用 `test-page` 和 `calibrate`。
+
+`--json` 同时提供 `trim_basis`、`trim_note`、`paper_rect`、`safe_rect`，以及旋转后源图坐标中的 `source_crop`。临时 `--offset-x-mm` / `--offset-y-mm` 只移动内容，预计的物理裁切线仍取自保存的实物校准；使用 `--no-calibration` 则回到机型估计。
 
 - 默认 `--area safe --fit contain`：完整图片放入安全区，四周留白，避免撕边损失布局。
 - `--area paper`：按撕边后的成品范围排版；`--area bleed --fit cover`：填满含出血的整幅图像，适合允许裁切的满版照片。
@@ -105,7 +125,7 @@ selphy print layout.png --wait
 
 负 X 向左，正 X 向右；负 Y 向上，正 Y 向下。示例值来自一台 CP1500 的首张 RP-108 实物照片，只是初步估值，不能直接认定适合所有机器。补偿按地址、机型、相纸分别保存；更换设备或相纸不会自动套用。IP/主机名变更后需重新保存对应配置。
 
-`print` 和 `prepare` 自动使用保存的补偿。可用 `--offset-x-mm` / `--offset-y-mm` 临时覆盖单轴（显式 0 也会覆盖），用 `--no-calibration` 忽略保存值，或用 `selphy calibrate clear --paper postcard` 删除。校准只平移内容，不根据斜拍照片擅自改缩放。JSON 的纸张/安全区坐标也随补偿平移，便于对照实际 JPEG。
+`print` 和 `prepare` 自动使用保存的补偿。可用 `--offset-x-mm` / `--offset-y-mm` 临时覆盖单轴（显式 0 也会覆盖），用 `--no-calibration` 忽略保存值，或用 `selphy calibrate clear --paper postcard` 删除。校准只平移内容，不根据斜拍照片擅自改缩放。JSON 的预计纸张/安全区坐标按保存的实物校准计算，不随单次内容偏移而移动。
 
 基准校准图始终带 `--no-calibration`；验证补偿效果时去掉该参数。`bleed` 模式平移后会裁掉移出栅格的出血像素；`safe` / `paper` 若发生内容超出栅格则报错，避免丢失排版。
 

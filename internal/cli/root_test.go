@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"image"
+	"image/jpeg"
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -125,10 +127,16 @@ func TestSavedCalibrationOverridesAndTargetIsolation(t *testing.T) {
 	if im["offset_x_mm"] != float64(0) || im["offset_y_mm"] != -.5 {
 		t.Fatal("explicit zero must override just X", im)
 	}
+	if p := im["paper_rect"].(map[string]any); p["x"] != float64(23) || im["trim_basis"] != "saved-calibration" {
+		t.Fatal("moving artwork must not move the known physical trim line", im)
+	}
 	plan = run("print", input, "--dry-run", "--no-calibration")
 	im = plan["image"].(map[string]any)
 	if im["offset_x_mm"] != float64(0) || im["offset_y_mm"] != float64(0) {
 		t.Fatal("saved calibration was not bypassed")
+	}
+	if im["trim_basis"] != "nominal-model" {
+		t.Fatal("uncalibrated trim must be labeled as an estimate")
 	}
 	plan = run("print", input, "--dry-run", "--host", "192.0.2.2")
 	im = plan["image"].(map[string]any)
@@ -139,5 +147,67 @@ func TestSavedCalibrationOverridesAndTargetIsolation(t *testing.T) {
 	show := run("calibrate", "show")
 	if show["saved"] != false {
 		t.Fatal("calibration not cleared")
+	}
+}
+
+func TestTrimPreviewExportsAreOfflineAndExplainCropping(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "source.png")
+	guide, trim := filepath.Join(dir, "guides.png"), filepath.Join(dir, "trimmed.jpg")
+	f, err := os.Create(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = png.Encode(f, image.NewRGBA(image.Rect(0, 0, 120, 60)))
+	f.Close()
+	base := []string{"--home", dir, "--host", "192.0.2.123", "--timeout", "1ns", "--model", "CP1500", "print", input, "--area", "bleed", "--fit", "cover", "--preview-guides", guide, "--preview-trimmed", trim}
+	var out, stderr bytes.Buffer
+	if err := Execute(context.Background(), "test", append(base, "--dry-run", "--json"), &out, &stderr); err != nil {
+		t.Fatalf("%v: %s", err, &stderr)
+	}
+	var plan map[string]any
+	if err = json.Unmarshal(out.Bytes(), &plan); err != nil {
+		t.Fatal(err)
+	}
+	if plan["preview_guides"] != guide || plan["preview_trimmed"] != trim {
+		t.Fatal(plan)
+	}
+	im := plan["image"].(map[string]any)
+	if im["trim_basis"] != "nominal-model" || im["trim_note"] == "" {
+		t.Fatal("missing estimate disclosure")
+	}
+	gf, err := os.Open(guide)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := png.DecodeConfig(gf)
+	gf.Close()
+	if err != nil || cfg.Width != 1248 || cfg.Height != 2088 {
+		t.Fatalf("guide dimensions: %+v %v", cfg, err)
+	}
+	tf, err := os.Open(trim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = jpeg.DecodeConfig(tf)
+	tf.Close()
+	if err != nil || cfg.Width != 1184 || cfg.Height != 1752 {
+		t.Fatalf("finished preview dimensions: %+v %v", cfg, err)
+	}
+	// Existing view-only files fail before any network or physical print action.
+	out.Reset()
+	stderr.Reset()
+	err = Execute(context.Background(), "test", base, &out, &stderr)
+	if err == nil || !strings.Contains(err.Error(), "file exists") {
+		t.Fatalf("existing preview was not protected before network: %v", err)
+	}
+	// A simple text dry-run should explain both printer trim and source crop.
+	out.Reset()
+	stderr.Reset()
+	if err = Execute(context.Background(), "test", []string{"--home", dir, "--model", "CP1500", "print", input, "--dry-run", "--area", "bleed", "--fit", "cover"}, &out, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "not physically calibrated") || !strings.Contains(out.String(), "discarded") || !strings.Contains(out.String(), "source framing") {
+		t.Fatalf("missing trim explanation: %s", &out)
 	}
 }

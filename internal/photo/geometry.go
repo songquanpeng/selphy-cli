@@ -15,7 +15,8 @@ type Rect struct {
 	Height int `json:"height"`
 }
 
-func rect(r image.Rectangle) Rect { return Rect{r.Min.X, r.Min.Y, r.Dx(), r.Dy()} }
+func rect(r image.Rectangle) Rect         { return Rect{r.Min.X, r.Min.Y, r.Dx(), r.Dy()} }
+func (r Rect) Rectangle() image.Rectangle { return image.Rect(r.X, r.Y, r.X+r.Width, r.Y+r.Height) }
 
 // PaperBounds maps the finished sheet into the full JPEG raster. QX uses its
 // printable image region, since its physical sheet includes an asymmetric tab.

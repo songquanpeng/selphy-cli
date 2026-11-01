@@ -118,6 +118,8 @@ func newRoot(r *runtime, version string) *cobra.Command {
 		s := `Use selphy discover --json to find printers. Read selphy status --host IP --json before printing.
 Use selphy config set --host IP --model CP1500 to save the target.
 Use selphy print PHOTO --dry-run --preview preview.jpg --json to inspect offline.
+Use --preview-guides guides.png for red estimated trim/green safe lines, and --preview-trimmed trimmed.jpg for the finished-sheet estimate.
+The annotated/trimmed previews are view-only; the printer always receives the unmarked full raster.
 The default --area safe --fit contain preserves the whole composition inside the trim-safe area.
 Use --area bleed --fit cover for intentional borderless/cropped photos or the calibration test page.
 Saved placement calibration is specific to host/model/paper. Use --no-calibration for a fresh baseline chart.

@@ -15,12 +15,13 @@ import (
 )
 
 type imageFlags struct {
-	paper, fit, preview, area string
-	rotate, quality           int
-	marginMM                  float64
-	offsetXMM, offsetYMM      float64
-	noCalibration             bool
-	command                   *cobra.Command
+	paper, fit, preview, area    string
+	rotate, quality              int
+	marginMM                     float64
+	offsetXMM, offsetYMM         float64
+	noCalibration                bool
+	command                      *cobra.Command
+	guidePreview, trimmedPreview string
 }
 
 func (f *imageFlags) flags(cmd *cobra.Command) {
@@ -34,6 +35,8 @@ func (f *imageFlags) flags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&f.noCalibration, "no-calibration", false, "ignore the saved printer/paper calibration")
 	cmd.Flags().Float64Var(&f.offsetXMM, "offset-x-mm", 0, "horizontal placement correction; negative = left, overrides saved value")
 	cmd.Flags().Float64Var(&f.offsetYMM, "offset-y-mm", 0, "vertical placement correction; negative = up, overrides saved value")
+	cmd.Flags().StringVar(&f.guidePreview, "preview-guides", "", "write a separate PNG with expected trim/safe lines (view only)")
+	cmd.Flags().StringVar(&f.trimmedPreview, "preview-trimmed", "", "write a JPEG estimate of the finished sheet (view only)")
 }
 func (f *imageFlags) prepare(r *runtime, path string) (photo.Image, photo.Profile, error) {
 	cfg, err := r.resolved()
@@ -56,16 +59,18 @@ func (f *imageFlags) prepare(r *runtime, path string) (photo.Image, photo.Profil
 		return photo.Image{}, p, err
 	}
 	cal := config.Calibration{}
+	calibrated := false
 	if !f.noCalibration {
-		cal = cfg.Calibrations[config.CalibrationKey(c.Host, model, p.Name)]
+		cal, calibrated = cfg.Calibrations[config.CalibrationKey(c.Host, model, p.Name)]
 	}
+	trimCal := cal
 	if f.command.Flags().Changed("offset-x-mm") {
 		cal.OffsetXMM = f.offsetXMM
 	}
 	if f.command.Flags().Changed("offset-y-mm") {
 		cal.OffsetYMM = f.offsetYMM
 	}
-	im, err := photo.PrepareWithOptions(path, p, photo.Options{Fit: f.fit, Area: f.area, Rotate: f.rotate, Quality: f.quality, MarginMM: f.marginMM, OffsetXMM: cal.OffsetXMM, OffsetYMM: cal.OffsetYMM})
+	im, err := photo.PrepareWithOptions(path, p, photo.Options{Fit: f.fit, Area: f.area, Rotate: f.rotate, Quality: f.quality, MarginMM: f.marginMM, OffsetXMM: cal.OffsetXMM, OffsetYMM: cal.OffsetYMM, TrimOffsetXMM: trimCal.OffsetXMM, TrimOffsetYMM: trimCal.OffsetYMM, TrimCalibrated: calibrated})
 	return im, p, err
 }
 func writePreview(path string, b []byte) error {
@@ -96,9 +101,13 @@ func prepareCommand(r *runtime) *cobra.Command {
 		if err = writePreview(output, im.JPEG); err != nil {
 			return err
 		}
-		return r.emit(map[string]any{"output": output, "paper": p, "image": im}, func() {
+		if err = f.writeAuxPreviews(im); err != nil {
+			return err
+		}
+		return r.emit(map[string]any{"output": output, "paper": p, "image": im, "preview_guides": f.guidePreview, "preview_trimmed": f.trimmedPreview}, func() {
 			fmt.Fprintf(r.out, "Wrote %s: %d×%d, %d bytes (%s)\n", output, im.Width, im.Height, im.Bytes, p.Name)
 			fmt.Fprintf(r.out, "Layout: %s / %s; correction X %+.2f mm, Y %+.2f mm\n", im.Area, f.fit, im.OffsetXMM, im.OffsetYMM)
+			writeTrimInfo(r.out, im, f)
 		})
 	}}
 	f.flags(cmd)
@@ -126,20 +135,27 @@ func printCommand(r *runtime) *cobra.Command {
 				return err
 			}
 		}
+		if err = f.writeAuxPreviews(im); err != nil {
+			return err
+		}
 		c, err := r.client()
 		if err != nil {
 			return err
 		}
-		plan := map[string]any{"state": "dry-run", "host": c.Host, "model": cfg.Model, "paper": p, "image": im, "sha256": fmt.Sprintf("%x", sha256.Sum256(im.JPEG)), "preview": f.preview}
+		plan := map[string]any{"state": "dry-run", "host": c.Host, "model": cfg.Model, "paper": p, "image": im, "sha256": fmt.Sprintf("%x", sha256.Sum256(im.JPEG)), "preview": f.preview, "preview_guides": f.guidePreview, "preview_trimmed": f.trimmedPreview}
 		if dryRun {
 			return r.emit(plan, func() {
 				fmt.Fprintf(r.out, "Dry run: %s at %s, %s, %d×%d, %d bytes\n", cfg.Model, c.Host, p.Name, im.Width, im.Height, im.Bytes)
 				fmt.Fprintf(r.out, "Layout: %s / %s; correction X %+.2f mm, Y %+.2f mm\n", im.Area, f.fit, im.OffsetXMM, im.OffsetYMM)
+				writeTrimInfo(r.out, im, f)
 				if f.preview != "" {
 					fmt.Fprintf(r.out, "Preview: %s\n", f.preview)
 				}
 			})
 		}
+		// Explain trim before contacting the printer. This never gates printing
+		// behind a prompt, and stdout remains machine-readable under --json.
+		writeTrimInfo(r.errOut, im, f)
 		ctx, cancel := context.WithTimeout(cmd.Context(), jobTimeout)
 		defer cancel()
 		status, err := c.Status(ctx)
@@ -187,7 +203,7 @@ func printCommand(r *runtime) *cobra.Command {
 			}
 			result.State = "idle-after-submission"
 		}
-		return r.emit(map[string]any{"state": result.State, "host": c.Host, "model": expected, "paper": p.Name, "image": im, "sha256": plan["sha256"]}, func() { fmt.Fprintf(r.out, "%s: %s (%s, %d×%d)\n", result.State, c.Host, p.Name, im.Width, im.Height) })
+		return r.emit(map[string]any{"state": result.State, "host": c.Host, "model": expected, "paper": p.Name, "image": im, "sha256": plan["sha256"], "preview_guides": f.guidePreview, "preview_trimmed": f.trimmedPreview}, func() { fmt.Fprintf(r.out, "%s: %s (%s, %d×%d)\n", result.State, c.Host, p.Name, im.Width, im.Height) })
 	}}
 	f.flags(cmd)
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "prepare and describe the job without network access or printing")

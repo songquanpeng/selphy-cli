@@ -39,6 +39,12 @@ func TestPrepareCropContainAndRotation(t *testing.T) {
 			if out.Bounds().Dx() != 100 || out.Bounds().Dy() != 100 {
 				t.Fatal(out.Bounds())
 			}
+			if fit == "cover" && result.SourceCrop != (Rect{30, 0, 60, 60}) {
+				t.Fatalf("incorrect source crop: %+v", result.SourceCrop)
+			}
+			if fit == "contain" && result.SourceCrop != (Rect{0, 0, 120, 60}) {
+				t.Fatalf("contain cropped the source: %+v", result.SourceCrop)
+			}
 			r, g, b, _ := out.At(50, 1).RGBA()
 			if fit == "contain" && min(r, g, b) < 60000 {
 				t.Fatal("contain lost white margin")
