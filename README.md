@@ -36,7 +36,7 @@ make desktop-test
 
 本机界面测试使用已安装的 Google Chrome；CI 用 Playwright Chromium（`npx playwright install --with-deps chromium`）。测试用模拟桥接覆盖界面操作，Go 适配层使用真实 CLI 做离线排版，并拦截实际打印调用，不消耗相纸。原生验收与测试边界见 [桌面验收记录](docs/desktop-testing.md)。
 
-发布文件可通过 `make desktop-release VERSION=0.2.0` 构建，在 `dist/` 生成签名应用 ZIP、独立 macOS arm64 CLI 和 SHA-256 校验文件，并验证解压后签名。默认为未公证的私有试用包；如钥匙串已有公证配置，可设置 `SELPHY_NOTARY_PROFILE`，脚本会先公证、装订票据再打包。仓库不保存公证凭据。
+发布文件可通过 `make desktop-release VERSION=0.2.0` 构建，在 `dist/` 生成签名应用 ZIP、独立 macOS arm64 CLI 和 SHA-256 校验文件，并验证解压后签名。默认为未公证的试用包；如钥匙串已有公证配置，可设置 `SELPHY_NOTARY_PROFILE`，脚本会先公证、装订票据再打包。仓库不保存公证凭据。
 
 ## 当前支持情况
 
@@ -50,19 +50,19 @@ CP900/CP910/CP1200/CP1300 在这个版本的 App 中走另一条 Android 打印�
 
 ## 安装
 
-需要 Go 1.23 或更新版本。私有仓库推荐通过已登录的 GitHub CLI 克隆后安装：
+需要 Go 1.23 或更新版本。可直接安装：
 
 ```sh
-gh repo clone songquanpeng/selphy-cli
+go install github.com/songquanpeng/selphy-cli/cmd/selphy@latest
+```
+
+也可以克隆后构建：
+
+```sh
+git clone https://github.com/songquanpeng/selphy-cli.git
 cd selphy-cli
 make install
 selphy --version
-```
-
-已配置私有 Go 模块认证时，也可使用：
-
-```sh
-GOPRIVATE=github.com/songquanpeng/selphy-cli go install github.com/songquanpeng/selphy-cli/cmd/selphy@latest
 ```
 
 默认安装到 `$(go env GOPATH)/bin/selphy`（设置了 `GOBIN` 时沿用该目录）。运行时无需 Go 或其他工具。

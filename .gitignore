@@ -10,3 +10,17 @@ desktop/node_modules/
 desktop/test-results/
 desktop/playwright-report/
 desktop/build/bin/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.cer
+*.mobileprovision
+*.provisionprofile
+*.apk
+*.apkm
+*.aab

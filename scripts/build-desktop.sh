@@ -13,6 +13,8 @@ for n in 16 32 128 256 512; do
   sips -z "$double" "$double" .local/studio-icon.png --out ".local/studio.iconset/icon_${n}x${n}@2x.png" >/dev/null
 done
 iconutil -c icns .local/studio.iconset -o "$APP/Contents/Resources/AppIcon.icns"
+cp LICENSE "$APP/Contents/Resources/LICENSE"
+python3 scripts/third-party-notices.py desktop "$APP/Contents/Resources/THIRD_PARTY_NOTICES.txt" >&2
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
