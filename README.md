@@ -16,17 +16,19 @@ CP900/CP910/CP1200/CP1300 在这个版本的 App 中走另一条 Android 打印�
 
 ## 安装
 
-需要 Go 1.23 或更新版本：
+需要 Go 1.23 或更新版本。私有仓库推荐通过已登录的 GitHub CLI 克隆后安装：
 
 ```sh
-go install github.com/songquanpeng/selphy-cli/cmd/selphy@latest
-```
-
-私有仓库可先 `git clone`，再在仓库内执行：
-
-```sh
+gh repo clone songquanpeng/selphy-cli
+cd selphy-cli
 make install
 selphy --version
+```
+
+已配置私有 Go 模块认证时，也可使用：
+
+```sh
+GOPRIVATE=github.com/songquanpeng/selphy-cli go install github.com/songquanpeng/selphy-cli/cmd/selphy@latest
 ```
 
 默认安装到 `$(go env GOPATH)/bin/selphy`（设置了 `GOBIN` 时沿用该目录）。运行时无需 Go 或其他工具。
