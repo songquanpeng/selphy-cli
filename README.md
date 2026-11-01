@@ -143,6 +143,8 @@ Wi-Fi 来宾网络、AP 隔离或电脑的 VPN 可能阻止设备互访。macOS 
 
 `doctor --session` 会进一步完成会话协商，等待打印机报告就绪后释放会话，不发送打印任务。
 
+如果 UDP 状态正常但 `session_ready` 为 false，说明网络可达，打印会话尚未就绪；它不等于已提交打印。CLI 等待 START_PRINT 最多 15 秒，未就绪不会发送照片。确认没有正在输出的任务后，可将打印机关机再开机重试。
+
 配置优先级为：命令行参数 > `SELPHY_HOST` / `SELPHY_MODEL` > 配置文件。配置目录由 `--home` / `SELPHY_HOME` 指定，默认是系统用户配置目录下的 `selphy-cli/config.json`（macOS：`~/Library/Application Support/selphy-cli/config.json`）。文件只存默认地址和机型，不存 Wi-Fi 密码。
 
 `--json` 时成功结果写 stdout，打印进度写 stderr；错误为 stderr 上的一条 `{"error":"..."}` JSON。退出码 0 为成功，1 为失败。打印期间 stderr 可以同时包含文本进度和最终 JSON 错误，脚本应以退出码和 stdout 的最终结构为准。

@@ -276,7 +276,7 @@ func doctorCommand(r *runtime) *cobra.Command {
 			return err
 		}
 		if probeErr != nil {
-			return fmt.Errorf("printer unreachable; see diagnostic output")
+			return fmt.Errorf("network or print-session diagnostic failed; see diagnostic output")
 		}
 		return nil
 	}}

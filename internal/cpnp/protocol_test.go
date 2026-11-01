@@ -67,18 +67,19 @@ func TestTransferRangeValidation(t *testing.T) {
 // A printer simulator that does actual UDP/TCP I/O, fragments responses, accepts
 // only 137 bytes per write, and asks for separate/repeated JPEG ranges.
 type simulator struct {
-	t         *testing.T
-	udp       *net.UDPConn
-	tcp       net.Listener
-	wg        sync.WaitGroup
-	cp        bool
-	jpeg      []byte
-	received  []byte
-	commands  []uint16
-	zeroAck   bool
-	errorCode uint32
-	badRange  bool
-	reject    bool
+	t          *testing.T
+	udp        *net.UDPConn
+	tcp        net.Listener
+	wg         sync.WaitGroup
+	cp         bool
+	jpeg       []byte
+	received   []byte
+	commands   []uint16
+	zeroAck    bool
+	errorCode  uint32
+	badRange   bool
+	reject     bool
+	neverReady bool
 }
 
 func newSimulator(t *testing.T, cp bool) *simulator {
@@ -157,10 +158,16 @@ func (s *simulator) serveUDP() {
 }
 func (s *simulator) serveTCP() {
 	defer s.wg.Done()
-	conn, err := s.tcp.Accept()
-	if err != nil {
-		return
+	for {
+		conn, err := s.tcp.Accept()
+		if err != nil {
+			return
+		}
+		s.serveConnection(conn)
 	}
+}
+func (s *simulator) serveConnection(conn net.Conn) {
+	var err error
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 	var assembled []byte
@@ -197,7 +204,7 @@ func (s *simulator) serveTCP() {
 				payload[2] = 1
 			}
 			req := uint32(0x10000)
-			if !started && warmup < 3 {
+			if !started && (warmup < 3 || s.neverReady) {
 				req = 0
 				if warmup == 0 {
 					le.PutUint16(payload[8:], 15)
@@ -317,6 +324,9 @@ func TestPrintFullNetworkWorkflow(t *testing.T) {
 			}
 			transfers := 0
 			for _, cmd := range s.commands {
+				if cp && cmd == 8 {
+					t.Fatal("single-page CP job must close session at final spool request, not send ExecuteSpoolPrint")
+				}
 				if cmd == 1 {
 					transfers++
 				}
@@ -383,5 +393,52 @@ func TestStatusBoundsAndErrors(t *testing.T) {
 	}
 	if _, err := ParseConnected(make([]byte, 63)); err == nil {
 		t.Fatal("short connected status accepted")
+	}
+}
+
+func TestTwoConsecutiveCPJobs(t *testing.T) {
+	s := newSimulator(t, true)
+	s.run()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	var failures []error
+	for i := 0; i < 2; i++ {
+		_, err := s.client().Print(ctx, Page{s.jpeg, 1248, 1872, 4, true, true}, nil)
+		if err != nil {
+			failures = append(failures, err)
+			break
+		}
+	}
+	s.close()
+	if len(failures) > 0 {
+		t.Fatal(failures)
+	}
+	starts := 0
+	for _, c := range s.commands {
+		if c == 7 {
+			starts++
+		}
+		if c == 8 {
+			t.Fatal("terminal spool request must be completed by session close")
+		}
+	}
+	if starts != 2 {
+		t.Fatalf("got %d jobs", starts)
+	}
+}
+
+func TestUnreadySessionSendsNoJob(t *testing.T) {
+	s := newSimulator(t, true)
+	s.neverReady = true
+	s.run()
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+	_, err := s.client().Print(ctx, Page{s.jpeg, 1248, 1872, 4, true, true}, nil)
+	s.close()
+	if err == nil {
+		t.Fatal("unready session must fail")
+	}
+	if len(s.commands) != 0 {
+		t.Fatalf("unready session sent print commands: %v", s.commands)
 	}
 }

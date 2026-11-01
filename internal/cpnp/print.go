@@ -60,7 +60,7 @@ type PrintResult struct {
 func (c *Client) Print(ctx context.Context, p Page, progress func(ConnectedStatus)) (result PrintResult, err error) {
 	s, err := c.Open(ctx)
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("open print session before sending job: %w", err)
 	}
 	defer func() {
 		closeErr := s.Close()
@@ -68,9 +68,11 @@ func (c *Client) Print(ctx context.Context, p Page, progress func(ConnectedStatu
 			err = fmt.Errorf("job accepted but session cleanup failed: %w", closeErr)
 		}
 	}()
-	initial, err := s.Ready(ctx)
+	readyCtx, readyCancel := context.WithTimeout(ctx, 15*time.Second)
+	initial, err := s.Ready(readyCtx)
+	readyCancel()
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("wait for START_PRINT before sending job (no image sent): %w", err)
 	}
 	expected := byte(2)
 	if p.CP {
@@ -99,14 +101,14 @@ func (c *Client) Print(ctx context.Context, p Page, progress func(ConnectedStatu
 	// Mark started before writing: a lost acknowledgement can still mean accepted.
 	started = true
 	if err = s.Write(ctx, StartPage(p)); err != nil {
-		return result, err
+		return result, fmt.Errorf("send start/spool command: %w", err)
 	}
 	var previous ConnectedStatus
 	sent := false
 	for {
 		st, e := s.Status(ctx)
 		if e != nil {
-			return result, e
+			return result, fmt.Errorf("read status after starting job: %w", e)
 		}
 		if progress != nil && st != previous {
 			progress(st)
@@ -119,18 +121,21 @@ func (c *Client) Print(ctx context.Context, p Page, progress func(ConnectedStatu
 		}
 		req := st.Request
 		if p.CP && sent && (req == 0x70000 || req == 0x10000) {
-			// CP1500 begins printing after ExecuteSpoolPrint, then may drop the
-			// connection. Do not claim physical completion from spool acceptance.
-			if req == 0x70000 {
-				if err = s.Write(ctx, command(8, 64)); err != nil {
-					return result, err
-				}
-			}
+			// For the final page the Android app returns IMAGE_SENT here and
+			// closes the session. ExecuteSpoolPrint is only used when more
+			// pages remain in that same session; sending it for our single
+			// page diverges from the app's terminal-job handshake.
 			return PrintResult{State: "submitted", Bytes: len(p.JPEG)}, nil
 		}
 		if req == 0x30000 {
 			if !sent {
 				return result, fmt.Errorf("printer ended job without requesting image data")
+			}
+			if p.CP {
+				if err = s.Write(ctx, command(3, 64)); err != nil {
+					return result, fmt.Errorf("acknowledge end-print request: %w", err)
+				}
+				return PrintResult{State: "submitted", Bytes: len(p.JPEG)}, nil
 			}
 			return PrintResult{State: "completed", Bytes: len(p.JPEG)}, nil
 		}
