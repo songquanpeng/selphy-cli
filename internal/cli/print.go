@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/songquanpeng/selphy-cli/internal/config"
 	"github.com/songquanpeng/selphy-cli/internal/cpnp"
 	"github.com/songquanpeng/selphy-cli/internal/photo"
 	"github.com/spf13/cobra"
@@ -17,15 +18,22 @@ type imageFlags struct {
 	paper, fit, preview, area string
 	rotate, quality           int
 	marginMM                  float64
+	offsetXMM, offsetYMM      float64
+	noCalibration             bool
+	command                   *cobra.Command
 }
 
 func (f *imageFlags) flags(cmd *cobra.Command) {
+	f.command = cmd
 	cmd.Flags().StringVar(&f.paper, "paper", "auto", "paper profile (see selphy papers; auto uses model default)")
 	cmd.Flags().StringVar(&f.fit, "fit", "contain", "contain: preserve the full image; cover: center crop")
 	cmd.Flags().StringVar(&f.area, "area", "safe", "content placement: safe (trim-safe), paper (finished sheet), bleed (full raster)")
 	cmd.Flags().Float64Var(&f.marginMM, "margin-mm", 0, "extra inset inside the selected area, in approximate millimeters")
 	cmd.Flags().IntVar(&f.rotate, "rotate", 0, "clockwise rotation in degrees, after EXIF orientation")
 	cmd.Flags().IntVar(&f.quality, "quality", 95, "JPEG quality 1..100")
+	cmd.Flags().BoolVar(&f.noCalibration, "no-calibration", false, "ignore the saved printer/paper calibration")
+	cmd.Flags().Float64Var(&f.offsetXMM, "offset-x-mm", 0, "horizontal placement correction; negative = left, overrides saved value")
+	cmd.Flags().Float64Var(&f.offsetYMM, "offset-y-mm", 0, "vertical placement correction; negative = up, overrides saved value")
 }
 func (f *imageFlags) prepare(r *runtime, path string) (photo.Image, photo.Profile, error) {
 	cfg, err := r.resolved()
@@ -39,7 +47,25 @@ func (f *imageFlags) prepare(r *runtime, path string) (photo.Image, photo.Profil
 	if err != nil {
 		return photo.Image{}, p, err
 	}
-	im, err := photo.PrepareWithOptions(path, p, photo.Options{Fit: f.fit, Area: f.area, Rotate: f.rotate, Quality: f.quality, MarginMM: f.marginMM})
+	c, err := r.client()
+	if err != nil {
+		return photo.Image{}, p, err
+	}
+	model, err := photo.NormalizeModel(cfg.Model)
+	if err != nil {
+		return photo.Image{}, p, err
+	}
+	cal := config.Calibration{}
+	if !f.noCalibration {
+		cal = cfg.Calibrations[config.CalibrationKey(c.Host, model, p.Name)]
+	}
+	if f.command.Flags().Changed("offset-x-mm") {
+		cal.OffsetXMM = f.offsetXMM
+	}
+	if f.command.Flags().Changed("offset-y-mm") {
+		cal.OffsetYMM = f.offsetYMM
+	}
+	im, err := photo.PrepareWithOptions(path, p, photo.Options{Fit: f.fit, Area: f.area, Rotate: f.rotate, Quality: f.quality, MarginMM: f.marginMM, OffsetXMM: cal.OffsetXMM, OffsetYMM: cal.OffsetYMM})
 	return im, p, err
 }
 func writePreview(path string, b []byte) error {
@@ -72,6 +98,7 @@ func prepareCommand(r *runtime) *cobra.Command {
 		}
 		return r.emit(map[string]any{"output": output, "paper": p, "image": im}, func() {
 			fmt.Fprintf(r.out, "Wrote %s: %d×%d, %d bytes (%s)\n", output, im.Width, im.Height, im.Bytes, p.Name)
+			fmt.Fprintf(r.out, "Layout: %s / %s; correction X %+.2f mm, Y %+.2f mm\n", im.Area, f.fit, im.OffsetXMM, im.OffsetYMM)
 		})
 	}}
 	f.flags(cmd)
@@ -107,6 +134,7 @@ func printCommand(r *runtime) *cobra.Command {
 		if dryRun {
 			return r.emit(plan, func() {
 				fmt.Fprintf(r.out, "Dry run: %s at %s, %s, %d×%d, %d bytes\n", cfg.Model, c.Host, p.Name, im.Width, im.Height, im.Bytes)
+				fmt.Fprintf(r.out, "Layout: %s / %s; correction X %+.2f mm, Y %+.2f mm\n", im.Area, f.fit, im.OffsetXMM, im.OffsetYMM)
 				if f.preview != "" {
 					fmt.Fprintf(r.out, "Preview: %s\n", f.preview)
 				}
@@ -145,6 +173,7 @@ func printCommand(r *runtime) *cobra.Command {
 		if actual == "" || !strings.Contains(actual, expected) {
 			return fmt.Errorf("printer reports model %q; requested %s", actual, expected)
 		}
+		fmt.Fprintf(r.errOut, "Layout: %s / %s; correction X %+.2f mm, Y %+.2f mm\n", im.Area, f.fit, im.OffsetXMM, im.OffsetYMM)
 		result, err := c.Print(ctx, cpnp.Page{JPEG: im.JPEG, Width: im.Width, Height: im.Height, Size: p.Code, CP: p.Family == "CP", Optimize: true}, func(s cpnp.ConnectedStatus) {
 			fmt.Fprintf(r.errOut, "Printer: %s; request=0x%x; JPEG offset=%d length=%d\n", s.State, s.Request, s.Offset, s.Length)
 		})

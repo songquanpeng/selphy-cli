@@ -69,3 +69,12 @@ func ContentBounds(p Profile, area string, marginMM float64) (image.Rectangle, e
 	}
 	return r, nil
 }
+
+func OffsetPixels(xMM, yMM float64) (image.Point, error) {
+	for _, v := range []float64{xMM, yMM} {
+		if math.IsNaN(v) || math.IsInf(v, 0) || math.Abs(v) > 10 {
+			return image.Point{}, fmt.Errorf("calibration offsets must be finite and within -10..10 mm")
+		}
+	}
+	return image.Pt(int(math.Round(xMM*PixelsPerMM)), int(math.Round(yMM*PixelsPerMM))), nil
+}

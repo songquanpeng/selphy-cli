@@ -28,8 +28,8 @@ func testPageCommand(r *runtime) *cobra.Command {
 		if closeErr != nil {
 			return closeErr
 		}
-		return r.emit(map[string]any{"output": output, "width": 1248, "height": 1872, "printed": false, "print_area": "bleed", "print_fit": "cover"}, func() {
-			fmt.Fprintf(r.out, "Wrote %s (1248×1872 PNG). Print this calibration with --area bleed --fit cover.\n", output)
+		return r.emit(map[string]any{"output": output, "width": 1248, "height": 1872, "printed": false, "print_area": "bleed", "print_fit": "cover", "baseline_no_calibration": true}, func() {
+			fmt.Fprintf(r.out, "Wrote %s (1248×1872 PNG). Baseline: print with --area bleed --fit cover --no-calibration.\n", output)
 		})
 	}}
 	cmd.Flags().StringVarP(&output, "output", "o", "", "new output PNG path")

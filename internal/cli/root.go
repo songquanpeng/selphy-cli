@@ -106,7 +106,7 @@ func newRoot(r *runtime, version string) *cobra.Command {
 	f.BoolVar(&r.json, "json", false, "machine-readable JSON")
 	f.DurationVar(&r.timeout, "timeout", 2*time.Second, "timeout per network exchange")
 	f.IntVar(&r.port, "port", cpnp.Port, "CPNP UDP port")
-	root.AddCommand(discoverCommand(r), statusCommand(r), infoCommand(r), printCommand(r), prepareCommand(r), testPageCommand(r), configCommand(r), doctorCommand(r), pairCommand(r))
+	root.AddCommand(discoverCommand(r), statusCommand(r), infoCommand(r), printCommand(r), prepareCommand(r), testPageCommand(r), calibrationCommand(r), configCommand(r), doctorCommand(r), pairCommand(r))
 	root.AddCommand(&cobra.Command{Use: "papers", Short: "List paper profiles and exact JPEG dimensions", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		return r.emit(photo.Profiles, func() {
 			for _, p := range photo.Profiles {
@@ -120,6 +120,7 @@ Use selphy config set --host IP --model CP1500 to save the target.
 Use selphy print PHOTO --dry-run --preview preview.jpg --json to inspect offline.
 The default --area safe --fit contain preserves the whole composition inside the trim-safe area.
 Use --area bleed --fit cover for intentional borderless/cropped photos or the calibration test page.
+Saved placement calibration is specific to host/model/paper. Use --no-calibration for a fresh baseline chart.
 Use selphy print PHOTO to physically print ONE photo. Each invocation consumes paper and ink.
 Print is never automatically retried after an ambiguous network failure: inspect printer state first.
 CP result "submitted" means spool acceptance, not physical completion. Use --wait to monitor idle.

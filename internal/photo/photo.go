@@ -66,17 +66,19 @@ func GetProfile(model, paper string) (Profile, error) {
 }
 
 type Image struct {
-	JPEG            []byte `json:"-"`
-	Width           int    `json:"width"`
-	Height          int    `json:"height"`
-	Bytes           int    `json:"bytes"`
-	SourceWidth     int    `json:"source_width"`
-	SourceHeight    int    `json:"source_height"`
-	EXIFOrientation int    `json:"exif_orientation"`
-	Area            string `json:"area"`
-	ContentRect     Rect   `json:"content_rect"`
-	PaperRect       Rect   `json:"paper_rect"`
-	SafeRect        Rect   `json:"safe_rect"`
+	JPEG            []byte  `json:"-"`
+	Width           int     `json:"width"`
+	Height          int     `json:"height"`
+	Bytes           int     `json:"bytes"`
+	SourceWidth     int     `json:"source_width"`
+	SourceHeight    int     `json:"source_height"`
+	EXIFOrientation int     `json:"exif_orientation"`
+	Area            string  `json:"area"`
+	ContentRect     Rect    `json:"content_rect"`
+	PaperRect       Rect    `json:"paper_rect"`
+	SafeRect        Rect    `json:"safe_rect"`
+	OffsetXMM       float64 `json:"offset_x_mm"`
+	OffsetYMM       float64 `json:"offset_y_mm"`
 }
 
 func Prepare(path string, p Profile, fit string, rotate, quality int) (Image, error) {
@@ -84,9 +86,10 @@ func Prepare(path string, p Profile, fit string, rotate, quality int) (Image, er
 }
 
 type Options struct {
-	Fit, Area       string
-	Rotate, Quality int
-	MarginMM        float64
+	Fit, Area            string
+	Rotate, Quality      int
+	MarginMM             float64
+	OffsetXMM, OffsetYMM float64
 }
 
 func PrepareWithOptions(path string, p Profile, options Options) (Image, error) {
@@ -94,6 +97,14 @@ func PrepareWithOptions(path string, p Profile, options Options) (Image, error) 
 	content, err := ContentBounds(p, options.Area, options.MarginMM)
 	if err != nil {
 		return Image{}, err
+	}
+	shift, err := OffsetPixels(options.OffsetXMM, options.OffsetYMM)
+	if err != nil {
+		return Image{}, err
+	}
+	content = content.Add(shift)
+	if options.Area != "bleed" && !content.In(image.Rect(0, 0, p.Width, p.Height)) {
+		return Image{}, fmt.Errorf("calibration moves content outside the JPEG raster; reduce the offset or add margin")
 	}
 	if fit != "cover" && fit != "contain" {
 		return Image{}, fmt.Errorf("--fit must be cover or contain")
@@ -161,7 +172,7 @@ func PrepareWithOptions(path string, p Profile, options Options) (Image, error) 
 	if err = jpeg.Encode(&out, dst, &jpeg.Options{Quality: quality}); err != nil {
 		return Image{}, err
 	}
-	return Image{JPEG: out.Bytes(), Width: p.Width, Height: p.Height, Bytes: out.Len(), SourceWidth: sw, SourceHeight: sh, EXIFOrientation: orientation, Area: options.Area, ContentRect: rect(content), PaperRect: rect(PaperBounds(p)), SafeRect: rect(SafeBounds(p))}, nil
+	return Image{JPEG: out.Bytes(), Width: p.Width, Height: p.Height, Bytes: out.Len(), SourceWidth: sw, SourceHeight: sh, EXIFOrientation: orientation, Area: options.Area, ContentRect: rect(content), PaperRect: rect(PaperBounds(p).Add(shift)), SafeRect: rect(SafeBounds(p).Add(shift)), OffsetXMM: options.OffsetXMM, OffsetYMM: options.OffsetYMM}, nil
 }
 
 func orient(src image.Image, o int) image.Image {

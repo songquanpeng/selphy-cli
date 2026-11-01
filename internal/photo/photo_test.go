@@ -174,3 +174,17 @@ func TestSafeLayoutProtectsContentFromTrim(t *testing.T) {
 		}
 	}
 }
+
+func TestCalibrationRejectsInvalidOffsets(t *testing.T) {
+	p, _ := GetProfile("CP1500", "postcard")
+	if _, err := PrepareWithOptions("unused", p, Options{Fit: "contain", Area: "safe", Quality: 95, OffsetXMM: -10}); err == nil {
+		t.Fatal("clipped safe content accepted")
+	}
+	if _, err := OffsetPixels(11, 0); err == nil {
+		t.Fatal("excessive offset accepted")
+	}
+	point, err := OffsetPixels(-.8, -.5)
+	if err != nil || point != image.Pt(-9, -6) {
+		t.Fatalf("offset conversion: %v %v", point, err)
+	}
+}

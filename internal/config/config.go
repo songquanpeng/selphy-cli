@@ -8,9 +8,18 @@ import (
 )
 
 type Config struct {
-	Host  string `json:"host,omitempty"`
-	Model string `json:"model,omitempty"`
+	Host         string                 `json:"host,omitempty"`
+	Model        string                 `json:"model,omitempty"`
+	Calibrations map[string]Calibration `json:"calibrations,omitempty"`
 }
+
+type Calibration struct {
+	OffsetXMM float64 `json:"offset_x_mm"`
+	OffsetYMM float64 `json:"offset_y_mm"`
+	Note      string  `json:"note,omitempty"`
+}
+
+func CalibrationKey(host, model, paper string) string { return host + "|" + model + "|" + paper }
 
 func Path(home string) (string, error) {
 	if home == "" {

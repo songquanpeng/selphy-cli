@@ -8,7 +8,7 @@
 
 | 机型 | 实现 | 验证范围 |
 | --- | --- | --- |
-| CP1500 | UDP 发现/身份/状态、TCP 会话、JPEG 分块上传、单页队列、三种相纸 | 真机完成发现、状态、会话协商及一张 RP-108 校准图提交，设备由 busy 回到 idle、无报错；实物裁切需读图确认 |
+| CP1500 | UDP 发现/身份/状态、TCP 会话、JPEG 分块上传、单页队列、三种相纸 | RP-108 真机成功出纸，用户照片确认；首张有进纸偏移，已加入本地校准，补偿值仍需复验 |
 | QX10 | CPNP 打印流程、方形照片、二维码 Wi-Fi 信息解码 | APK 静态分析与网络模拟器；尚无真机验证 |
 | QX20 | CPNP 打印流程、方形/无边框/卡片照片、二维码解码 | APK 静态分析与网络模拟器；尚无真机验证 |
 
@@ -79,8 +79,8 @@ CP 的 `submitted` 表示照片已交入打印队列；不等于实物已出纸�
 
 ```sh
 selphy test-page --output test-page.png
-selphy print test-page.png --area bleed --fit cover --dry-run --preview test-page.jpg
-selphy print test-page.png --area bleed --fit cover --wait
+selphy print test-page.png --area bleed --fit cover --no-calibration --dry-run --preview test-page.jpg
+selphy print test-page.png --area bleed --fit cover --no-calibration --wait
 ```
 
 ## 相纸规格
@@ -90,6 +90,23 @@ selphy print test-page.png --area bleed --fit cover --wait
 RP-108 按[佳能规格](https://cam.start.canon/en/P001/manual/html/UG-07_Reference_0070.html)撕边前为 100×177 mm、撕边后为 100×148 mm。上下各约 14.5 mm 的进纸边不计入成品。APK 将 CP 明信片成品映射到整张 1248×1872 JPEG 内的 `(32,60,1184,1752)` 区域，另给出 `(55,84,1138,1704)` 的保证打印区域，约比成品边缘缩进 2 mm。这就是默认 `safe` 区域；实际偏移仍应使用校准图检查。
 
 文字、二维码、细边框使用默认安全区；需要更宽保护边时增加 `--margin-mm`。`--dry-run --json` 输出 `content_rect`、`paper_rect` 和 `safe_rect`，坐标全部相对于实际发送的 JPEG。标尺毫米数按 APK 的 11.835 px/mm 标定，为近似参考。
+
+## 实物偏移校准
+
+静态安全区不能消除每台机器的进纸偏移。先用上述不带补偿的校准图检查撕边后的四侧；若左侧红线外还有余量、右侧已裁进黄线，图像在实物上偏右，内容应往左补偿。上侧余量大于下侧时，往上补偿。
+
+```sh
+selphy calibrate set --paper postcard --offset-x-mm=-0.8 --offset-y-mm=-0.5
+selphy calibrate show --paper postcard --json
+selphy print layout.png --dry-run --preview corrected.jpg --json
+selphy print layout.png --wait
+```
+
+负 X 向左，正 X 向右；负 Y 向上，正 Y 向下。示例值来自一台 CP1500 的首张 RP-108 实物照片，只是初步估值，不能直接认定适合所有机器。补偿按地址、机型、相纸分别保存；更换设备或相纸不会自动套用。IP/主机名变更后需重新保存对应配置。
+
+`print` 和 `prepare` 自动使用保存的补偿。可用 `--offset-x-mm` / `--offset-y-mm` 临时覆盖单轴（显式 0 也会覆盖），用 `--no-calibration` 忽略保存值，或用 `selphy calibrate clear --paper postcard` 删除。校准只平移内容，不根据斜拍照片擅自改缩放。JSON 的纸张/安全区坐标也随补偿平移，便于对照实际 JPEG。
+
+基准校准图始终带 `--no-calibration`；验证补偿效果时去掉该参数。`bleed` 模式平移后会裁掉移出栅格的出血像素；`safe` / `paper` 若发生内容超出栅格则报错，避免丢失排版。
 
 | `--paper` | 适用机型 | JPEG 像素 |
 | --- | --- | --- |
