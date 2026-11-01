@@ -1,0 +1,28 @@
+import AppKit
+let output = CommandLine.arguments[1]
+let size = 1024.0
+let image = NSImage(size: NSSize(width:size,height:size))
+image.lockFocus()
+NSColor(calibratedRed:0.97,green:0.95,blue:0.90,alpha:1).setFill()
+NSBezierPath(roundedRect:NSRect(x:70,y:70,width:884,height:884),xRadius:195,yRadius:195).fill()
+let shadow = NSShadow(); shadow.shadowColor=NSColor.black.withAlphaComponent(0.16);shadow.shadowBlurRadius=34;shadow.shadowOffset=NSSize(width:0,height:-16);shadow.set()
+NSColor(calibratedRed:0.79,green:0.39,blue:0.25,alpha:1).setFill()
+NSBezierPath(roundedRect:NSRect(x:226,y:365,width:572,height:300),xRadius:62,yRadius:62).fill()
+NSShadow().set()
+NSColor(calibratedRed:0.88,green:0.49,blue:0.32,alpha:1).setFill()
+NSBezierPath(roundedRect:NSRect(x:226,y:530,width:572,height:155),xRadius:55,yRadius:55).fill()
+NSColor(calibratedRed:0.49,green:0.24,blue:0.16,alpha:1).setFill()
+NSBezierPath(roundedRect:NSRect(x:292,y:423,width:440,height:36),xRadius:16,yRadius:16).fill()
+NSColor(calibratedRed:0.99,green:0.98,blue:0.94,alpha:1).setFill()
+NSBezierPath(roundedRect:NSRect(x:331,y:224,width:362,height:230),xRadius:8,yRadius:8).fill()
+let rect = NSRect(x:353,y:274,width:318,height:161)
+NSColor(calibratedRed:0.72,green:0.78,blue:0.70,alpha:1).setFill(); NSBezierPath(rect:rect).fill()
+NSColor(calibratedRed:0.88,green:0.78,blue:0.58,alpha:1).setFill();NSBezierPath(ovalIn:NSRect(x:582,y:361,width:48,height:48)).fill()
+NSColor(calibratedRed:0.42,green:0.53,blue:0.44,alpha:1).setFill()
+let mountain=NSBezierPath();mountain.move(to:NSPoint(x:353,y:274));mountain.line(to:NSPoint(x:470,y:399));mountain.line(to:NSPoint(x:620,y:274));mountain.close();mountain.fill()
+NSColor(calibratedRed:0.62,green:0.64,blue:0.48,alpha:1).setFill()
+let hill=NSBezierPath();hill.move(to:NSPoint(x:465,y:274));hill.line(to:NSPoint(x:580,y:363));hill.line(to:NSPoint(x:671,y:300));hill.line(to:NSPoint(x:671,y:274));hill.close();hill.fill()
+NSColor(calibratedRed:0.98,green:0.88,blue:0.65,alpha:1).setFill();NSBezierPath(ovalIn:NSRect(x:720,y:562,width:16,height:16)).fill()
+image.unlockFocus()
+let data = NSBitmapImageRep(data:image.tiffRepresentation!)!.representation(using:.png,properties:[:])!
+try data.write(to:URL(fileURLWithPath:output))

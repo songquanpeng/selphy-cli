@@ -4,6 +4,38 @@
 
 基于用户提供的 **SELPHY Photo Layout 4.4.0** APK 独立还原 CPNP 协议，不依赖 Android、Java、Canon 账户或云服务。原始 APK、反编译代码和厂商原生库不随项目分发。
 
+## Mac 桌面客户端：SELPHY Studio
+
+Go + Wails 原生 Mac 应用，界面参考本机 Textboard 的暖色、简洁布局。直接复用本仓库 CLI 内核，无需另外安装 CLI，也无需启动终端或本地 HTTP 服务。
+
+- 系统照片选择器和 `⌘ O`：JPEG、PNG、WebP、HEIC（HEIC 由 macOS 本地转换）。
+- 成品 / 裁切线 / 实际发送完整图三种预览，选择相纸、安全留白、满版、旋转、额外留白和 JPEG 质量。
+- 搜索打印机、保存默认地址与机型、查询状态和纸墨、连接诊断。
+- 自动沿用 CLI 保存的校准，也可按设备 / 型号 / 相纸保存水平和垂直补偿。
+- 打印前的系统确认会显示照片、设备和相纸；一份一张，支持请求取消和实时进度。
+- 预览固定照片副本、设置和校准，打印使用相同输入。修改设置、成功提交或打印失败后须重新生成预览；不会自动重试任务。
+- 导出不含标线的打印 JPEG，拒绝覆盖现有文件。照片副本与预览放在私有临时目录，正常退出会清理；不上传云端。
+
+在 Apple Silicon Mac 上构建和安装（macOS 12+，Xcode Command Line Tools；桌面模块使用 Go 1.26，Go 可自动下载工具链）：
+
+```sh
+make desktop          # 构建、签名并验证 .app
+make desktop-install  # 安装到 /Applications，固定 Dock，然后启动
+```
+
+安装更新前先退出客户端。构建默认写入 `~/Library/Caches/selphy-studio/build/`，避免 iCloud Documents 为 `.app` 添加扩展属性而破坏签名。自动使用钥匙串已有 Developer ID；没有时使用 ad-hoc，可通过 `SIGN_IDENTITY` 指定。此本地试用构建没有进行 Apple 公证，不作为对外分发包。
+
+共享 CLI 配置路径；不会修改现有校准，除非点击保存。启动时不自动发起网络请求。打印机关机不影响离线导入、排版和预览。关闭窗口会退出应用，Dock 图标可重新打开。
+
+桌面测试：
+
+```sh
+cd desktop && npm ci && cd ..
+make desktop-test
+```
+
+本机界面测试使用已安装的 Google Chrome；CI 用 Playwright Chromium（`npx playwright install --with-deps chromium`）。测试用模拟桥接覆盖界面操作，Go 适配层使用真实 CLI 做离线排版，并拦截实际打印调用，不消耗相纸。原生验收与测试边界见 [桌面验收记录](docs/desktop-testing.md)。
+
 ## 当前支持情况
 
 | 机型 | 实现 | 验证范围 |

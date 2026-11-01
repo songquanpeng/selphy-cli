@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws:; object-src 'none'; base-uri 'none'"
+    />
+    <title>SELPHY Studio</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="titlebar">
+      <div class="wordmark">
+        <span class="brand-icon">▧</span> SELPHY <span>Studio</span>
+      </div>
+      <span class="local-label"><i></i> 本地照片工作台</span>
+    </header>
+    <main class="workspace">
+      <aside class="sidebar">
+        <div class="section-heading">打印机 <span>01</span></div>
+        <div class="device-illustration" aria-hidden="true">
+          <div class="printer-top"></div>
+          <div class="printer-body"><span>SELPHY</span><i></i></div>
+          <div class="printer-photo"><div></div></div>
+        </div>
+        <h1 id="device-name">Canon CP1500</h1>
+        <div id="connection" class="status neutral">尚未查询状态</div>
+        <label
+          >设备型号<select id="model">
+            <option>CP1500</option>
+            <option>QX10</option>
+            <option>QX20</option>
+          </select></label
+        >
+        <label
+          >IP 地址 / 主机名<input
+            id="host"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="192.168.0.1"
+        /></label>
+        <div class="button-row">
+          <button id="save-target">保存设备</button
+          ><button id="discover">搜索设备</button>
+        </div>
+        <div id="devices" class="devices" hidden></div>
+        <button id="status" class="wide subtle">↻　刷新打印机状态</button>
+        <dl id="supplies" hidden></dl>
+        <div class="sidebar-bottom">
+          <button id="doctor" class="text-button">
+            连接诊断 <span>↗</span>
+          </button>
+          <p>Mac 和打印机需在同一网络。<br />首次连接请允许局域网访问。</p>
+          <div class="privacy">◉　照片仅在本机处理</div>
+        </div>
+      </aside>
+      <section class="stage">
+        <div class="stage-heading">
+          <div>
+            <div class="eyebrow">YOUR MOMENTS, ON PAPER</div>
+            <h2>让照片，留在手边。</h2>
+          </div>
+          <button id="choose" class="choose-button">
+            ＋ 选择照片 <kbd>⌘ O</kbd>
+          </button>
+        </div>
+        <div class="preview-toolbar">
+          <span id="photo-name">还没有选择照片</span>
+          <div class="segmented" role="group" aria-label="预览模式">
+            <button id="view-trimmed" class="active" data-view="trimmed">
+              成品</button
+            ><button id="view-guides" data-view="guides">裁切线</button
+            ><button id="view-full" data-view="full">完整图</button>
+          </div>
+        </div>
+        <div id="canvas" class="canvas">
+          <div id="empty" class="empty">
+            <div class="empty-photo" aria-hidden="true">
+              <svg width="66" height="66" viewBox="0 0 66 66" fill="none">
+                <rect
+                  x="10"
+                  y="10"
+                  width="46"
+                  height="46"
+                  rx="5"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                />
+                <circle
+                  cx="25"
+                  cy="25"
+                  r="4"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                />
+                <path
+                  d="M11 47L25 34l9 8 9-13 12 18"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                />
+              </svg>
+            </div>
+            <h3>从一张喜欢的照片开始</h3>
+            <p>选择照片，调整留白，预览成品。<br />剩下的，交给你的 SELPHY。</p>
+            <button id="choose-empty" class="primary">选择照片</button
+            ><span>JPEG · PNG · WebP · HEIC</span>
+          </div>
+          <img id="preview-image" alt="照片打印预览" hidden />
+          <div id="rendering" class="rendering" hidden>
+            <span class="spinner"></span><span>正在生成预览…</span>
+          </div>
+        </div>
+        <div class="preview-caption">
+          <span id="preview-caption">成品预览会显示预计撕边后的构图</span
+          ><button id="export" class="text-button" disabled>导出 JPEG ↓</button>
+        </div>
+        <div id="notice" class="notice" role="status" aria-live="polite">
+          准备就绪。先选择一张照片，也可以离线预览。
+        </div>
+        <details id="activity">
+          <summary>操作记录 <span id="activity-count">0</span></summary>
+          <pre id="activity-log"></pre>
+        </details>
+      </section>
+      <aside class="settings">
+        <div class="settings-scroll">
+          <div class="section-heading">照片设置 <span>02</span></div>
+          <label>相纸<select id="paper"></select></label>
+          <div class="field-label">排版区域</div>
+          <div class="layout-options">
+            <button data-area="safe" class="layout-option active">
+              <span class="layout-icon safe"></span
+              ><span>安全留白<small>保留完整构图</small></span
+              ><i>✓</i></button
+            ><button data-area="paper" class="layout-option">
+              <span class="layout-icon paper"></span
+              ><span>成品范围<small>内容接近纸张边缘</small></span
+              ><i>✓</i></button
+            ><button data-area="bleed" class="layout-option">
+              <span class="layout-icon bleed"></span
+              ><span>满版出血<small>裁去边缘，铺满相纸</small></span
+              ><i>✓</i>
+            </button>
+          </div>
+          <label
+            >照片适配<select id="fit">
+              <option value="contain">完整放入 · 保留整张照片</option>
+              <option value="cover">居中裁切 · 填满所选区域</option>
+            </select></label
+          >
+          <div class="two-fields">
+            <label
+              >额外留白 / mm<input
+                id="margin"
+                type="number"
+                min="0"
+                max="20"
+                step="0.5"
+                value="0" /></label
+            ><label
+              >旋转<select id="rotate">
+                <option value="0">0°</option>
+                <option value="90">90° ↻</option>
+                <option value="180">180°</option>
+                <option value="270">270° ↻</option>
+              </select></label
+            >
+          </div>
+          <details id="advanced">
+            <summary>校准与画质</summary>
+            <div class="advanced-content">
+              <div id="calibration-note" class="calibration-note">
+                将自动使用此设备和相纸的已保存校准。
+              </div>
+              <div class="two-fields">
+                <label
+                  >水平偏移 / mm<input
+                    id="offset-x"
+                    type="number"
+                    step="0.1"
+                    value="0" /></label
+                ><label
+                  >垂直偏移 / mm<input
+                    id="offset-y"
+                    type="number"
+                    step="0.1"
+                    value="0"
+                /></label>
+              </div>
+              <p class="hint">负值向左 / 向上；正值向右 / 向下。</p>
+              <button id="save-calibration" class="wide">保存此相纸校准</button
+              ><label
+                >JPEG 质量<input
+                  id="quality"
+                  type="number"
+                  min="1"
+                  max="100"
+                  value="95"
+              /></label>
+            </div>
+          </details>
+          <div id="image-info" class="image-info" hidden></div>
+        </div>
+        <div class="print-panel">
+          <div class="print-count">
+            <span>打印份数</span><strong>1 张</strong>
+          </div>
+          <button id="print" class="primary print-button" disabled>
+            打印照片 <span>↗</span></button
+          ><button id="cancel" class="wide" hidden>取消当前操作</button
+          ><button id="regenerate" class="wide subtle" hidden>
+            重新生成预览
+          </button>
+          <p id="print-hint">
+            选择照片后即可预览和打印。<br />每次打印前都会再次确认。
+          </p>
+        </div>
+      </aside>
+    </main>
+    <dialog id="diagnostic">
+      <div class="dialog-heading">
+        <h3>连接诊断</h3>
+        <button id="close-diagnostic" aria-label="关闭诊断">×</button>
+      </div>
+      <pre id="diagnostic-content"></pre>
+      <p>
+        如果连接失败，请检查打印机电源、同一 Wi-Fi、VPN 和系统的局域网权限。
+      </p>
+    </dialog>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
