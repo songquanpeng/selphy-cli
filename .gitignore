@@ -1,0 +1,8 @@
+.local/
+bin/
+dist/
+.DS_Store
+*.test
+coverage.out
+/selphy
+/selphy.exe
