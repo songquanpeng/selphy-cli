@@ -122,6 +122,18 @@ v0.1.2 修正后，用户断电重启清除已卡住的状态，补偿版单页�
 
 ## 图片与配对
 
+### 高光、图像优化与调色
+
+CP `createPageSetting` 将 `SurfaceFinish.Gloss` 映射为 `GLOSSY_PRINT=2`，将用户的 AutoCorrect 开关映射为 `ImageOptimizeSetting.ON=3` / `OFF=2`；`history/PrintSetting.Attributes` 也明确将该项命名为 `autoCorrectionOnPrinterSide`。CLI 当前默认的 StartSpool 载荷 offset 19=2、offset 17=3，与“高光、图像优化开启”对应。
+
+[佳能 CP1500 官方说明](https://cam.start.canon/en/P001/manual/html/UG-06_Set-up_0020.html)描述图像优化会按照片自动修正亮度、对比度；光泽设置控制表面保护膜效果。这两项通过协议交给打印机执行，不需要在 CLI 重写一套相同的调色算法。
+
+App 另有用户编辑路径：`layout/ImageItemCreator.getMergeConfig` 经 CGE 处理亮度、对比度、饱和度、白平衡和可选滤镜；默认 `CorrectionInfo` 的四个输入都是 0.5，映射到 brightness=0、contrast=1、saturation=1、whitebalance=0，滤镜名为空。这个中性默认配置中未见额外的自动增强曲线。`BitmapExtensionKt.saveToFile` 和 `saveToInternalStorage` 用 JPEG 质量参数 100；CLI 默认 95，可显式 `--quality 100` 进行对比。不同编码器/缩放器的同名质量参数并不保证相同像素输出。
+
+上述分析针对提供的 Android APK，不构成对 iOS 版本整条色彩处理路径的证明。ICC、HDR/广色域源图、手机端编辑、导出压缩及不同构图仍可能使实物不同。CLI 当前不做 ICC 色域转换；进行对照时应使用同一个 sRGB 文件、同一构图，并匹配打印端的优化和光泽设置。用户提供的私人测试照片与打印日志仅保留在本机忽略目录，不纳入仓库。
+
+### 栅格与安全区
+
 图片用 Go 解码、应用 EXIF 方向、裁切/留白、编码成 baseline JPEG，去掉原图元数据。尺寸采用 `paper.json` 的 `print_image_size[].image_rect`，支持范围在发送前与设备报告的 JPEG 最小/最大尺寸核对。当前不做 ICC 色彩转换。
 
 RP-108 的成品规格按[佳能官方手册](https://cam.start.canon/en/P001/manual/html/UG-07_Reference_0070.html)：未撕边 100×177 mm，撕边后 100×148 mm。两个进纸边不应当作为可保留排版范围。APK 的 CP 明信片 `paper_size` 为 1184×1752，打印图像 rect 为 `(-32,-60,1248,1872)`，故相对于 JPEG 成品区域为 `(32,60,1184,1752)`。保证打印区域为 1138×1704；居中映射得 `(55,84,1138,1704)`。L、卡片和 QX 的安全区域也来自 APK 尺寸，QX 尚未真机校准。
@@ -155,7 +167,8 @@ QX 二维码前缀 `SPLQR:`，剩余非空字段以 `$` 分隔，依次为版本
 - UDP 状态由 busy 回到 idle，无错误；CLI 返回 `idle-after-submission`。
 - 仅发送一个单页作业，没有自动重试打印。用户随后提供实物照片，确认成功出纸；绿色安全框和四角标记都保留。左侧仍见红线外区域，右侧逼近 1 mm 黄线；上侧在预计红线外，下侧位于红/黄线之间，说明预计成品原点与实际进纸有偏差。
 - 据首张照片及用户描述，给本机该地址/机型/相纸保存初步补偿：向左约 0.8 mm、向上约 0.5 mm。使用 11.835 px/mm 换算为 JPEG 内容左移 9 px、上移 6 px。该值为估计，不是经过透视校正或尺量验证的精密结果；当时仅离线预览。
-- 用户随后授权第二轮验证。首个尝试未进入 START_PRINT，用户确认没有走纸或新增出片；修正末页握手并由用户重启后，重新发送补偿图：432792 字节，SHA-256 `05048ed9773fd06f88318d451491d1b5e192d145a16aea52663595a7baecbddc`，设备返回 `idle-after-submission`。第二轮的实物边框仍待用户读图确认。
+- 用户随后授权第二轮验证。首个尝试未进入 START_PRINT，用户确认没有走纸或新增出片；修正末页握手并由用户重启后，重新发送补偿图：432792 字节，SHA-256 `05048ed9773fd06f88318d451491d1b5e192d145a16aea52663595a7baecbddc`，设备返回 `idle-after-submission`。用户观察第二轮实物后确认红线基本吻合真实裁切线。
+- 随后完成一张用户提供的真实照片测试，匹配高光、图像优化开启，使用 `--area bleed --fit cover --quality 100`，保留已校准的偏移。照片成功出纸，设备再次恢复 idle，下一无图像测试会话也正常进入 START_PRINT。用户反馈未见明显色彩问题。素材与打印预览、日志只保留本地，不上传私人照片或其内容标识。
 
 补偿配置不硬编码到机型协议中，而是存在本地 `calibrations`，键由地址、机型、相纸组成。每轴支持临时覆盖，`--no-calibration` 可以回到基准。内容区域平移后，安全区模式必须仍位于栅格内；出血模式允许外侧出血像素被裁掉。自动测试覆盖单轴显式归零、忽略保存补偿、隔离不同目标和清除配置。
 
