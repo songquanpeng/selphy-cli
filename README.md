@@ -36,6 +36,8 @@ make desktop-test
 
 本机界面测试使用已安装的 Google Chrome；CI 用 Playwright Chromium（`npx playwright install --with-deps chromium`）。测试用模拟桥接覆盖界面操作，Go 适配层使用真实 CLI 做离线排版，并拦截实际打印调用，不消耗相纸。原生验收与测试边界见 [桌面验收记录](docs/desktop-testing.md)。
 
+发布文件可通过 `make desktop-release VERSION=0.2.0` 构建，在 `dist/` 生成签名应用 ZIP、独立 macOS arm64 CLI 和 SHA-256 校验文件，并验证解压后签名。默认为未公证的私有试用包；如钥匙串已有公证配置，可设置 `SELPHY_NOTARY_PROFILE`，脚本会先公证、装订票据再打包。仓库不保存公证凭据。
+
 ## 当前支持情况
 
 | 机型 | 实现 | 验证范围 |

@@ -1,7 +1,7 @@
-VERSION ?= 0.1.3
+VERSION ?= 0.2.0
 GO ?= go
 
-.PHONY: build install test clean desktop desktop-install desktop-test
+.PHONY: build install test clean desktop desktop-install desktop-test desktop-release
 build:
 	$(GO) build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o bin/selphy ./cmd/selphy
 
@@ -24,3 +24,6 @@ desktop-install:
 desktop-test:
 	$(GO) test -race ./internal/desktop
 	cd desktop && go vet ./... && npm ci && npm test
+
+desktop-release:
+	VERSION=$(VERSION) scripts/release-desktop.sh
